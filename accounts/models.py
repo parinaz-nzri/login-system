@@ -1,30 +1,40 @@
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.core.validators import RegexValidator
 from django.db import models
 
 
-class UserManager(BaseUserManager):
-    def create_user(self, phone, password=None, **extra_fields):
-        if not phone:
+class CustomUserManager(BaseUserManager):
+    def create_user(self, phone_number, password=None, email=None, **extra_fields):
+        if not phone_number:
             raise ValueError("Phone number is required")
-        user = self.model(phone=phone, **extra_fields)
+        user = self.model(phone_number=phone_number, email=email, **extra_fields)
         user.set_password(password)
         user.save()
         return user
 
+    def create_superuser(self, phone_number, password, email=None, **extra_fields):
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        return self.create_user(phone_number, password, email, **extra_fields)
 
-class User(AbstractBaseUser):
-    phone_regex = RegexValidator(
-        regex=r'^(\+98|0)?9\d{9}$',
-        message="Phone number must be entered in the format: '09123456789' or '+989123456789' or '00989123456789'."
+
+class User(AbstractBaseUser, PermissionsMixin):
+    phone_number = models.CharField(
+        max_length=17,
+        validators=[RegexValidator(regex=r'^(?:\+98|0)?9\d{9}$')],
+        unique=True,
+        null=False,
     )
-    phone = models.CharField(max_length=17, unique=True, validators=[phone_regex])
+    email = models.EmailField(max_length=255, unique=True, blank=True, null=True)
     first_name = models.CharField(max_length=128, blank=True)
     last_name = models.CharField(max_length=128, blank=True)
-    email = models.EmailField(blank=True)
     is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
 
-    USERNAME_FIELD = 'phone'
-    REQUIRED_FIELDS = []
+    USERNAME_FIELD = "phone_number"
 
-    objects = UserManager()
+    objects = CustomUserManager()
+
+    def __str__(self):
+        return self.phone_number
